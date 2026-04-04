@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import Landing from "./pages/Landing";
-import Enter from "./pages/Enter";
 import Student from "./pages/Student";
 import Kitchen from "./pages/Kitchen";
 import Warden from "./pages/Warden";
@@ -11,7 +10,6 @@ function Navbar() {
   const location = useLocation();
   const links = [
     { to: "/",        label: "Home" },
-    { to: "/enter",   label: "Enter" },
     { to: "/student", label: "Student" },
     { to: "/kitchen", label: "Kitchen" },
     { to: "/warden",  label: "Warden" },
@@ -45,7 +43,6 @@ export default function App() {
       <Navbar />
       <Routes>
         <Route path="/"        element={<Landing />} />
-        <Route path="/enter"   element={<Enter />} />
         <Route path="/student" element={<Student />} />
         <Route path="/kitchen" element={<Kitchen />} />
         <Route path="/warden"  element={<Warden />} />

@@ -35,10 +35,7 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  background-image:
-    linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
+ 
 }
 
 /* ── TOP NAVBAR ─────────────────────────────────────────── */
@@ -379,4 +376,14 @@ td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
   .page { padding: 80px 16px 40px; }
   .topnav-link { padding: 5px 8px; font-size: 12px; }
   .stat-grid { gap: 8px; }
+}
+
+/* ── FIX AUTOFILL WHITE BACKGROUND ── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #111827 inset !important;
+  -webkit-text-fill-color: #f0f4ff !important;
+  caret-color: #f0f4ff;
 }
