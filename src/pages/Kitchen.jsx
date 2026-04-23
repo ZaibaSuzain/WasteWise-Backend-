@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { createWasteLog} from "../api";
 
 const RATE = 140;
 const CO2_FACTOR = 2.5;
@@ -30,33 +30,30 @@ export default function Kitchen() {
   }, { wasted: 0, money: 0, co2: 0 });
 
   const handleSubmit = async () => {
-    setSaving(true);
-    setSaveError("");
-    const validDishes = dishes.filter(d => d.name.trim());
-    if (validDishes.length === 0) {
-      setSaveError("Add at least one dish before submitting.");
-      setSaving(false);
-      return;
-    }
-    const wasteLogs = validDishes.map(d => {
-      const c = calc(d);
-      return { staff_id: staffId, meal_type: meal, dish_name: d.name.trim(), cooked_kg: parseFloat(d.cooked || 0), consumed_kg: parseFloat(d.consumed || 0), wasted_kg: c.wasted, money_wasted: c.money, co2_kg: c.co2 };
-    });
-    const { error: wasteError } = await supabase.from("waste_logs").insert(wasteLogs);
-    if (wasteError) { setSaveError("Failed to save: " + wasteError.message); setSaving(false); return; }
-    const flaggedDishes = validDishes.filter(d => calc(d).wasted >= 5);
-    for (const d of flaggedDishes) {
-      const c = calc(d);
-      const { data: existing } = await supabase.from("flags").select("*").eq("dish_name", d.name.trim()).neq("status", "resolved").maybeSingle();
-      if (existing) {
-        await supabase.from("flags").update({ days_flagged: existing.days_flagged + 1, avg_waste_kg: ((existing.avg_waste_kg * existing.days_flagged) + c.wasted) / (existing.days_flagged + 1), status: existing.days_flagged + 1 >= 3 ? "escalated" : existing.status }).eq("id", existing.id);
-      } else {
-        await supabase.from("flags").insert([{ dish_name: d.name.trim(), days_flagged: 1, avg_waste_kg: c.wasted, avg_rating: null, status: "open", last_action: null }]);
-      }
-    }
+  setSaving(true);
+  setSaveError("");
+  const validDishes = dishes.filter(d => d.name.trim());
+  if (validDishes.length === 0) {
+    setSaveError("Add at least one dish before submitting.");
     setSaving(false);
-    setSubmitted(true);
-  };
+    return;
+  }
+  for (const d of validDishes) {
+    const c = calc(d);
+    await createWasteLog({
+      staff_id: staffId,
+      meal_type: meal,
+      dish_name: d.name.trim(),
+      cooked_kg: parseFloat(d.cooked || 0),
+      consumed_kg: parseFloat(d.consumed || 0),
+      wasted_kg: c.wasted,
+      money_wasted: c.money,
+      co2_kg: c.co2,
+    });
+  }
+  setSaving(false);
+  setSubmitted(true);
+};
 
   // ── SUBMITTED ──
   if (submitted) return (

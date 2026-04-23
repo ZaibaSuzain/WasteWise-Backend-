@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { getEscalatedFlags, getWasteLogsByRange, getReviewsByRange, getFlags, updateFlagStatus as updateFlag } from "../api";
 
 export default function Chief() {
   const navigate = useNavigate();
@@ -20,55 +20,42 @@ export default function Chief() {
   };
 
   const loadData = async () => {
-    setLoading(true);
-    const monthAgo = new Date();
-    monthAgo.setDate(monthAgo.getDate() - 30);
-    const monthAgoISO = monthAgo.toISOString();
+  setLoading(true);
+  const monthAgo = new Date();
+  monthAgo.setDate(monthAgo.getDate() - 30);
+  const monthAgoISO = monthAgo.toISOString();
 
-    const { data: escalationData } = await supabase
-      .from("escalations")
-      .select("*, flags(dish_name, days_flagged, last_action, status)")
-      .order("days_ignored", { ascending: false });
+  const [escalationData, wasteData, skipData, flagData] = await Promise.all([
+    getEscalatedFlags(),
+    getWasteLogsByRange(monthAgoISO),
+    getReviewsByRange(monthAgoISO),
+    getFlags(),
+  ]);
 
-    const { data: wasteData } = await supabase
-      .from("waste_logs")
-      .select("wasted_kg, money_wasted, co2_kg")
-      .gte("created_at", monthAgoISO);
+  const totalWaste = wasteData?.reduce((s, w) => s + (w.wasted_kg || 0), 0).toFixed(1) || 0;
+  const totalMoney = wasteData?.reduce((s, w) => s + (w.money_wasted || 0), 0).toFixed(0) || 0;
+  const totalCO2   = wasteData?.reduce((s, w) => s + (w.co2_kg || 0), 0).toFixed(1) || 0;
+  const hunger     = skipData?.filter(r => r.skipped).length || 0;
 
-    const { data: skipData } = await supabase
-      .from("reviews")
-      .select("id")
-      .eq("skipped", true)
-      .gte("created_at", monthAgoISO);
+  const shame = [...flagData]
+    .sort((a, b) => b.avg_waste_kg - a.avg_waste_kg)
+    .slice(0, 3);
 
-    const { data: flagData } = await supabase
-      .from("flags")
-      .select("dish_name, avg_waste_kg, avg_rating, days_flagged")
-      .order("avg_waste_kg", { ascending: false })
-      .limit(3);
-
-    const totalWaste = wasteData?.reduce((s, w) => s + (w.wasted_kg   || 0), 0).toFixed(1) || 0;
-    const totalMoney = wasteData?.reduce((s, w) => s + (w.money_wasted || 0), 0).toFixed(0) || 0;
-    const totalCO2   = wasteData?.reduce((s, w) => s + (w.co2_kg      || 0), 0).toFixed(1) || 0;
-    const hunger     = skipData?.length || 0;
-
-    setEscalated(escalationData || []);
-    setShame(flagData || []);
-    setMonthly({ waste: totalWaste, money: totalMoney, co2: totalCO2, hunger });
-    setLoading(false);
-  };
+  setEscalated(escalationData || []);
+  setShame(shame || []);
+  setMonthly({ waste: totalWaste, money: totalMoney, co2: totalCO2, hunger });
+  setLoading(false);
+};
+      
 
   useEffect(() => { if (loggedIn) loadData(); }, [loggedIn]);
 
-  const sendNotice = async (escalation) => {
-    if (escalation.flags?.dish_name) {
-      await supabase
-        .from("flags")
-        .update({ last_action: "formal notice sent by chief warden" })
-        .eq("dish_name", escalation.flags.dish_name);
-    }
-    setNoticed(p => ({ ...p, [escalation.id]: true }));
-  };
+const sendNotice = async (escalation) => {
+  if (escalation.id) {
+    await updateFlag(escalation.id, "formal notice sent by chief warden");
+  }
+  setNoticed(p => ({ ...p, [escalation.id]: true }));
+};
 
   const downloadPDF = () => {
     const { jsPDF } = require("jspdf");

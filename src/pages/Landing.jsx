@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { getStats } from "../api";
 
 const TODAY = new Date().toLocaleDateString("en-IN", {
   day: "2-digit", month: "short", year: "numeric"
@@ -22,27 +22,11 @@ export default function Landing() {
 
   useEffect(() => {
     const fetchStats = async () => {
-   const now = new Date();
-  const todayStr = new Date(now.getTime() + (5.5 * 60 * 60 * 1000))
-  .toISOString().split("T")[0];
-      const weekAgo  = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-      const weekAgoISO = weekAgo.toISOString();
-
-      const [
-  { data: todayWaste },
-  { data: skipData },
-  { data: weekWaste },
-  { data: reviewData },
-  { data: flagData },
-  { data: trendData },
-] = await Promise.all([
-  supabase.from("waste_logs").select("wasted_kg, money_wasted, dish_name").gte("created_at", `${todayStr}T00:00:00+05:30`),
-  supabase.from("reviews").select("id").eq("skipped", true).gte("created_at", `${todayStr}T00:00:00+05:30`),
-  supabase.from("waste_logs").select("wasted_kg, money_wasted").gte("created_at", weekAgoISO),
-  supabase.from("reviews").select("rating").gte("created_at", weekAgoISO),
-  supabase.from("flags").select("dish_name, days_flagged, status").in("status", ["open","acknowledged","escalated"]).gte("days_flagged", 5).order("days_flagged", { ascending: false }).limit(3),
-  supabase.from("waste_logs").select("wasted_kg, created_at").gte("created_at", weekAgoISO).order("created_at", { ascending: true }),
-]);
+ const { todayWaste, todayReviews, weekWaste, weekReviews, flags } = await getStats();
+const skipData = todayReviews;
+const reviewData = weekReviews;
+const trendData = weekWaste;
+const flagData = flags;
 
       const wasteToday  = todayWaste?.reduce((s, w) => s + (w.wasted_kg    || 0), 0).toFixed(1) || "0.0";
       const moneyToday  = todayWaste?.reduce((s, w) => s + (w.money_wasted || 0), 0).toFixed(0) || "0";

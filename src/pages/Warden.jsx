@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { getFlags, getEscalatedFlags, getReviewsByRange, getWasteLogsByRange, updateFlagStatus as updateFlag } from "../api";
 
 export default function Warden() {
   const navigate = useNavigate();
@@ -18,42 +18,37 @@ export default function Warden() {
   };
 
   const loadData = async () => {
-    setLoading(true);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoISO = weekAgo.toISOString();
-const [
-  { data: flagData },
-  { data: escalationData },
-  { data: reviewData },
-  { data: wasteData },
-] = await Promise.all([
-  supabase.from("flags").select("*").order("days_flagged", { ascending: false }),
-  supabase.from("escalations").select("*, flags(dish_name, days_flagged, last_action)").order("days_ignored", { ascending: false }),
-  supabase.from("reviews").select("rating").gte("created_at", weekAgoISO),
-  supabase.from("waste_logs").select("wasted_kg, money_wasted").gte("created_at", weekAgoISO),
-]);
+  setLoading(true);
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoISO = weekAgo.toISOString();
 
+  const [flagData, escalationData, reviewData, wasteData] = await Promise.all([
+    getFlags(),
+    getEscalatedFlags(),
+    getReviewsByRange(weekAgoISO),
+    getWasteLogsByRange(weekAgoISO),
+  ]);
 
-    const avgRating  = reviewData?.length ? (reviewData.reduce((s, r) => s + r.rating, 0) / reviewData.length).toFixed(1) : 0;
-    const totalWaste = wasteData?.reduce((s, w) => s + (w.wasted_kg || 0), 0).toFixed(1) || 0;
-    const totalMoney = wasteData?.reduce((s, w) => s + (w.money_wasted || 0), 0).toFixed(0) || 0;
-    const totalFlags    = flagData?.length || 0;
-    const resolvedFlags = flagData?.filter(f => f.status === "resolved").length || 0;
-    const resolvedPct   = totalFlags ? Math.round((resolvedFlags / totalFlags) * 100) : 0;
+  const avgRating = reviewData?.length ? (reviewData.reduce((s, r) => s + r.rating, 0) / reviewData.length).toFixed(1) : 0;
+  const totalWaste = wasteData?.reduce((s, w) => s + (w.wasted_kg || 0), 0).toFixed(1) || 0;
+  const totalMoney = wasteData?.reduce((s, w) => s + (w.money_wasted || 0), 0).toFixed(0) || 0;
+  const totalFlags = flagData?.length || 0;
+  const resolvedFlags = flagData?.filter(f => f.status === "resolved").length || 0;
+  const resolvedPct = totalFlags ? Math.round((resolvedFlags / totalFlags) * 100) : 0;
 
-    setFlags(flagData || []);
-    setEscalated(escalationData || []);
-    setStats({ avgRating, totalWaste, totalMoney, menuAge: 6, resolved: resolvedPct });
-    setLoading(false);
-  };
+  setFlags(flagData || []);
+  setEscalated(escalationData || []);
+  setStats({ avgRating, totalWaste, totalMoney, menuAge: 6, resolved: resolvedPct });
+  setLoading(false);
+};
 
   useEffect(() => { if (loggedIn) loadData(); }, [loggedIn]);
 
-  const setFlagStatus = async (id, newStatus) => {
-    const { error } = await supabase.from("flags").update({ status: newStatus, last_action: newStatus }).eq("id", id);
-    if (!error) setFlags(prev => prev.map(f => f.id === id ? { ...f, status: newStatus } : f));
-  };
+const setFlagStatus = async (id, newStatus) => {
+  const updated = await updateFlag(id, newStatus);
+  if (updated) setFlags(prev => prev.map(f => f._id === id ? { ...f, status: newStatus } : f));
+};
 
   /* ── LOGIN ── */
   if (!loggedIn) return (
@@ -154,18 +149,18 @@ const [
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✓ {f.status.toUpperCase()}</div>
               {f.status !== "resolved" && (
-                <button onClick={() => setFlagStatus(f.id, "resolved")} style={s.resolveBtn}>
+               <button onClick={() => setFlagStatus(f._id, "resolved")} style={s.resolveBtn}> 
                   MARK RESOLVED
                 </button>
               )}
             </div>
           ) : (
             <div style={{ display: "flex", gap: 6 }}>
-              {["acknowledge", "fix scheduled", "resolved"].map(st => (
-                <button key={st} onClick={() => setFlagStatus(f.id, st)} style={s.actionBtn}>
-                  {st}
-                </button>
-              ))}
+             {["acknowledge", "fix scheduled", "resolved"].map(st => (
+  <button key={st} onClick={() => setFlagStatus(f._id, st)} style={s.actionBtn}>
+    {st}
+  </button>
+))}
             </div>
           )}
         </div>

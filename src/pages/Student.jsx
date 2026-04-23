@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { createReview } from "../api";
 
 const HOSTELS = ["Block A","Block B","Block C","Block D","Block E"];
 const DISHES  = ["Irekai palya","Jeera Rice","Dal "];
@@ -48,23 +48,23 @@ export default function Student() {
   };
 
   const handleSubmit = async () => {
-    setSaving(true);
-    await supabase.from("reviews").insert(
-      dishes.map(d => ({
-        roll_number: roll,
-        hostel,
-        meal_type: meal,
-        dish_name: d.name,
-        rating: d.stars || 0,
-        comment: d.comment,
-        portion: d.portion,
-        skipped: ate === false,
-        skip_reason: skipReason || null,
-      }))
-    );
-    setSaving(false);
-    setSubmitted(true);
-  };
+  setSaving(true);
+  for (const d of dishes) {
+    await createReview({
+      roll_number: roll,
+      hostel,
+      meal_type: meal,
+      dish_name: d.name,
+      rating: d.stars || 0,
+      comment: d.comment,
+      portion: d.portion,
+      skipped: ate === false,
+      skip_reason: skipReason || null,
+    });
+  }
+  setSaving(false);
+  setSubmitted(true);
+};
 
   const inputStyle = {
     width:"100%", padding:"12px 16px",
